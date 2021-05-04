@@ -186,3 +186,124 @@ module.exports = scraperObject;
   -- Scraping these books for URLs
   -- Navigating to each individual book page
   -- Scraping the books data
+
+##### Reopen `pageScraper.js`
+
+- Add the following content under line 6 - (`await page.goto(this.url);`)
+
+```js
+// Wait for the required DOM to be rendered
+await page.waitForSelector(".page_inner");
+// Get the link to all the required books
+let urls = await page.$$eval("section ol > li", (links) => {
+  // Make sure the book to be scraped is in stock
+  links = links.filter(
+    (link) =>
+      link.querySelector(".instock.availability > i").textContent !== "In stock"
+  );
+  // Extract the links from the data
+  links = links.map((el) => el.querySelector("h3 > a").href);
+  return links;
+});
+console.log(urls);
+```
+
+- In this code block we call the `page.waitForSelector` method. This method waited for the `div` that contains all the book related information that will be rendered in the DOM, and
+- Then the `page.$$eval()` method is called. This gets the URL element with the slector `selection ol li`
+
+  -- Be sure you always return a string or a number from the `page.$eval()` and `page.$$eval()` methods
+
+- Save and close the file.
+
+##### Re-run the application
+
+- Run command `npm run start`
+- The browser will open, navigate to the web page, and then close once the task completes.
+- Check your console. It will now contain all the scraped URLs.
+
+```js
+Output
+
+Opening the browser......
+Navigating to http://books.toscrape.com...
+[
+  'http://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html',
+  'http://books.toscrape.com/catalogue/tipping-the-velvet_999/index.html',
+  'http://books.toscrape.com/catalogue/soumission_998/index.html',
+  'http://books.toscrape.com/catalogue/sharp-objects_997/index.html',
+  'http://books.toscrape.com/catalogue/sapiens-a-brief-history-of-humankind_996/index.html',
+  'http://books.toscrape.com/catalogue/the-requiem-red_995/index.html',
+  'http://books.toscrape.com/catalogue/the-dirty-little-secrets-of-getting-your-dream-job_994/index.html',
+  'http://books.toscrape.com/catalogue/the-coming-woman-a-novel-based-on-the-life-of-the-infamous-feminist-victoria-woodhull_993/index.html',
+  'http://books.toscrape.com/catalogue/the-boys-in-the-boat-nine-americans-and-their-epic-quest-for-gold-at-the-1936-berlin-olympics_992/index.html',
+  'http://books.toscrape.com/catalogue/the-black-maria_991/index.html',
+  'http://books.toscrape.com/catalogue/starving-hearts-triangular-trade-trilogy-1_990/index.html',
+  'http://books.toscrape.com/catalogue/shakespeares-sonnets_989/index.html',
+  'http://books.toscrape.com/catalogue/set-me-free_988/index.html',
+  'http://books.toscrape.com/catalogue/scott-pilgrims-precious-little-life-scott-pilgrim-1_987/index.html',
+  'http://books.toscrape.com/catalogue/rip-it-up-and-start-again_986/index.html',
+  'http://books.toscrape.com/catalogue/our-band-could-be-your-life-scenes-from-the-american-indie-underground-1981-1991_985/index.html',
+  'http://books.toscrape.com/catalogue/olio_984/index.html',
+  'http://books.toscrape.com/catalogue/mesaerion-the-best-science-fiction-stories-1800-1849_983/index.html',
+  'http://books.toscrape.com/catalogue/libertarianism-for-beginners_982/index.html',
+  'http://books.toscrape.com/catalogue/its-only-the-himalayas_981/index.html'
+]
+```
+
+-- This is a great start, but we want to scrape all the relevant data not just the URL
+
+##### Scraping the Relevant Data
+
+- Reopen `pageScraper.js` again
+- Add the following after line 20, which will loop through each link, open a new instance and retrieve relevant data
+
+```js
+// Loop through each of those links, open a new page instance and get the relevant data from them
+let pagePromise = (link) =>
+  new Promise(async (resolve, reject) => {
+    let dataObj = {};
+    let newPage = await browser.newPage();
+    await newPage.goto(link);
+    dataObj["bookTitle"] = await newPage.$eval(
+      ".product_main > h1",
+      (text) => text.textContent
+    );
+    dataObj["bookPrice"] = await newPage.$eval(
+      ".price_color",
+      (text) => text.textContent
+    );
+    dataObj["noAvailable"] = await newPage.$eval(
+      ".instock.availability",
+      (text) => {
+        // Strip new line and tab spaces
+        text = text.textContent.replace(/(\r\n\t|\n|\r|\t)/gm, "");
+        // Get the number of stock available
+        let regexp = /^.*\((.*)\).*$/i;
+        let stockAvailable = regexp.exec(text)[1].split(" ")[0];
+        return stockAvailable;
+      }
+    );
+    dataObj["imageUrl"] = await newPage.$eval(
+      "#product_gallery img",
+      (img) => img.src
+    );
+    dataObj["bookDescription"] = await newPage.$eval(
+      "#product_description",
+      (div) => div.nextSibling.nextSibling.textContent
+    );
+    dataObj["upc"] = await newPage.$eval(
+      ".table.table-striped > tbody > tr > td",
+      (table) => table.textContent
+    );
+    resolve(dataObj);
+    await newPage.close();
+  });
+
+for (link in urls) {
+  let currentPageData = await pagePromise(urls[link]);
+  // scrapedData.push(currentPageData);
+  console.log(currentPageData);
+}
+```
+
+~~Working on it...~~
